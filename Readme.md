@@ -6,7 +6,7 @@ More PoCs and samples will be added in the coming weeks.
 
 ## How to use
 - Add reference to `.\NtApiDotNet\NtApiDotNet.dll`
-- Specify `pcapng` and `keytab` in `main.cs`
+- Specify `pcapng` and `keytab` in `Program.cs`
 - Compile and profit
 
 Read our blog series for more information: https://www.huntandhackett.com/blog/how-to-achieve-eternal-persistence
