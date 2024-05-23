@@ -4,6 +4,11 @@ This repo contains test samples and proof-of-concept code for achieving passive 
 
 More PoCs and samples will be added in the coming weeks.
 
+## How to use
+- Add reference to .`\NtApiDotNet\NtApiDotNet.dll`
+- Specify `pcapng and `keytab` in main.cs
+- Compile and profit
+
 Read our blog series for more information: https://www.huntandhackett.com/blog/how-to-achieve-eternal-persistence
 
 
