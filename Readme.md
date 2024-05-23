@@ -6,3 +6,6 @@ More PoCs and samples will be added in the coming weeks.
 
 Read our blog series for more information: https://www.huntandhackett.com/blog/how-to-achieve-eternal-persistence
 
+
+# Legal disclaimer
+Please make sure that you use __PassiveAggression__ in a responsible manner: assess whether there are any characteristics of the environment, or applicable (internal or external) laws, rules or regulations, that prevent you from using __PassiveAggression__. You remain solely responsible for any damage or consequences that might occur as a result of, or related to the use of __PassiveAggression__ or any of the information as included in this blogpost.  
