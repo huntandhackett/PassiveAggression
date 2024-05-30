@@ -36,10 +36,9 @@ namespace PassiveAgression
             dataHandler = new DataHandler();
             Task handlerStart = dataHandler.Start();
 
-            keytabLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\Pwdreset\pwdreset.keytab";
-            pcapLocation   = @"C:\Code\PassiveAggression\PassiveAggression\TestData\Pwdreset\pwdreset.pcapng";
+            keytabLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\krbtgt\krbtgtreset.keytab";
+            pcapLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\krbtgt\krbtgtreset.pcapng";
 
-            
             var tsharkArguments = GetTsharkArguments();
 
 
@@ -122,11 +121,12 @@ namespace PassiveAgression
         {
 
             // Process password reset events
-            if (msg.SAMR_Opnum        == Enums.OP_SAMR.SamrSetInformationUser2 &&
+            if (msg.SAMR_Opnum == Enums.OP_SAMR.SamrSetInformationUser2 &&
                 msg.DCERPC_PacketType == Enums.PKT_DCERPC.REQUEST)
             {
                 SamrSetInformationUser2 pwdset = new SamrSetInformationUser2(msg);
                 dataHandler.AddSetInformationUser2(pwdset);
+
             }
 
             // Process SMB Session negotiation
@@ -142,6 +142,21 @@ namespace PassiveAgression
                 LookupNamesRequest req = new LookupNamesRequest(msg);
                 dataHandler.AddLookupNamesRequest(req);
             }
+
+            // Process RPCNetLogon NetRServerAuthenticate3 request
+            if (msg.NETLOGON_Opnum == Enums.OP_NETLOGON.NetrServerAuthenticate3)
+            {
+                NetRServerAuthenticate3Response res = new NetRServerAuthenticate3Response(msg);
+                dataHandler.AddNetrServerAuthenticate3Response(res);
+            }
+
+            // Process NetrLogonSendToSam events
+            if (msg.NETLOGON_Opnum == Enums.OP_NETLOGON.NetrLogonSendToSam)
+            {
+                NetRLogonSendToSam sam = new NetRLogonSendToSam(msg);
+                dataHandler.AddSendToSam(sam);
+            }
         }
+
     }
 }

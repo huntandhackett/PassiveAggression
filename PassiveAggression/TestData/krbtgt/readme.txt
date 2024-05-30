@@ -1,0 +1,2 @@
+Old krbtgthash: 21789f1a5fd02143e93ea9d2fb2d6e33
+New krbtgthash: ad840b4a42cb50b8d854afb62e1220e8
