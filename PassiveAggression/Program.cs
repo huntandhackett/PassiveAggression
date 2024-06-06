@@ -36,8 +36,11 @@ namespace PassiveAgression
             dataHandler = new DataHandler();
             Task handlerStart = dataHandler.Start();
 
-            keytabLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\krbtgt\krbtgtreset.keytab";
-            pcapLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\krbtgt\krbtgtreset.pcapng";
+            //keytabLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\krbtgt\krbtgtreset.keytab";
+            //pcapLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\krbtgt\krbtgtreset.pcapng";
+
+            keytabLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\Pwdreset\pwdreset.keytab";
+            pcapLocation = @"C:\Code\PassiveAggression\PassiveAggression\TestData\Pwdreset\pwdreset.pcapng";
 
             var tsharkArguments = GetTsharkArguments();
 
@@ -156,6 +159,23 @@ namespace PassiveAgression
                 NetRLogonSendToSam sam = new NetRLogonSendToSam(msg);
                 dataHandler.AddSendToSam(sam);
             }
+
+            // Process RPC binds
+            if (msg.DCERPC_PacketType == Enums.PKT_DCERPC.BIND ||
+                msg.DCERPC_PacketType == Enums.PKT_DCERPC.BINDACK)
+            {
+                RPCBinding bind = new RPCBinding(msg);
+                dataHandler.AddRPCBinding(bind);
+            }
+
+            // Process replication events
+            if (msg.DCERPC_PacketType == Enums.PKT_DCERPC.RESPONSE &&
+                msg.DCERPC_Opnum == Enums.OP_DCERPC.DRSGetNCChanges)
+            {
+                GetNCChangesResponse response = new GetNCChangesResponse(msg);
+                dataHandler.AddGetNCChanges(response);
+            }
+
         }
 
     }
